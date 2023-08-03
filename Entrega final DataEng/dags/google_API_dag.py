@@ -18,6 +18,32 @@ dag_path = os.getcwd()
 if not os.path.exists('data'):
     os.makedirs('data')
 
+def ProcesoExitoso(proceso):
+    try:
+        x=smtplib.SMTP('smtp.gmail.com',587)
+        x.starttls()
+        x.login(Variable.get('SMTP_EMAIL_FROM'),Variable.get('SMTP_PASSWORD'))
+        subject=f'El dag terminó correctamente'
+        message='El proceso {} terminó satisfactoriamente'.format(proceso)
+        x.sendmail(Variable.get('SMTP_EMAIL_FROM'),Variable.get('SMTP_EMAIL_TO'),message)
+        print('Exito al enviar el mail')
+    except Exception as exception:
+        print(exception)
+        print('Fallo al enviar el mail')
+
+def ProcesoFallido(proceso, error):
+    try:
+        x=smtplib.SMTP('smtp.gmail.com',587)
+        x.starttls()
+        x.login(Variable.get('SMTP_EMAIL_FROM'),Variable.get('SMTP_PASSWORD'))
+        subject=f'El dag terminó correctamente'
+        message='El proceso {} falló con el siguiente error {}'.format(proceso, error)
+        x.sendmail(Variable.get('SMTP_EMAIL_FROM'),Variable.get('SMTP_EMAIL_TO'),message)
+        print('Exito al enviar el mail')
+    except Exception as exception:
+        print(exception)
+        print('Fallo al enviar el mail')
+
 def conectar_API_Region():
     try:
             
@@ -50,7 +76,7 @@ def conectar_API_Region():
 
     except Exception as e:
             print("Ocurrio el siguiente error; ", e)
-            raise e
+
 
 
 def cargar_data_region():
@@ -135,6 +161,7 @@ def cargar_data_region():
             connect.commit()
             cur.close()
             connect.close()
+            ProcesoExitoso("Cargar data por región")
         except Exception as e:
             print("Ocurrio el siguiente error; ", e)
 
@@ -168,7 +195,7 @@ def conectar_API_Fecha():
 
     except Exception as e:
             print("Ocurrio el siguiente error; ", e)
-            raise e
+            ProcesoFallido("Cargar data por fecha", e)
 
 
 def cargar_data_fecha():
@@ -249,9 +276,11 @@ def cargar_data_fecha():
             connect.commit()
             cur.close()
             connect.close()
+            ProcesoExitoso("Cargar data por fecha")
 
         except Exception as e:
             print("Ocurrio el siguiente error; ", e)
+            ProcesoFallido("Cargar data por región", e)
 
 
 
@@ -259,34 +288,35 @@ def cargar_data_fecha():
 default_args={
     'owner': 'GiulianaB',
     'retries':5,
+    'start_date': datetime(2023,8,1),
     'retry_delay': timedelta(minutes=3)
 }
 
 
 with DAG(
     default_args=default_args,
-    dag_id='mi_primer_dar_con_PythonOperator',
-    description= 'Nuestro primer dag usando python Operator',
+    dag_id='google_API_DAG',
+    description= 'Dag conectado con pytrends que permite cargar consultas por día a base de AWS',
     schedule_interval='@daily'
     ) as dag:
     task1=PythonOperator(
-         task_id="Conecta datos por región",
-         python_callable=conectar_API_Region(),
+         task_id="Conecta_datos_por_regiones",
+         python_callable=conectar_API_Region,
 
     )
     task2=PythonOperator(
-         task_id="Conecta datos por fecha",
-         python_callable=conectar_API_Fecha(),
+         task_id="Conecta_datos_por_fechas",
+         python_callable=conectar_API_Fecha,
          )
     task3= PythonOperator(
-        task_id="Carga data por región",
-         python_callable=cargar_data_region(),
+        task_id="Carga_data_por_regiones",
+         python_callable=cargar_data_region,
     )
     task4= PythonOperator(
-        task_id="Carga data por fecha",
-         python_callable=cargar_data_fecha(),
+        task_id="Carga_data_por_fechas",
+         python_callable=cargar_data_fecha,
     )
     
 
 
-    task1>>task2>>task3>>task4
+task1>>task2>>task3>>task4
